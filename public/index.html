@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Excelカードジェネレーター</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    body {
+      background: #111;
+      color: white;
+      font-family: sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+
+    #card {
+      position: relative;
+      width: 300px;
+      height: 200px;
+      margin: 20px auto;
+      padding: 20px;
+      border: 2px solid #555;
+      border-radius: 15px;
+      box-shadow: 0 0 10px #000;
+      overflow: hidden;
+    }
+
+    #cardBg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-size: cover;
+      background-position: center;
+      z-index: 0;
+    }
+
+    #card h2,
+    #card p {
+      position: relative;
+      z-index: 1;
+    }
+
+    #card h2 {
+      margin: 0 0 20px;
+      font-size: 20px;
+    }
+
+    #card p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    button,
+    select,
+    input[type="range"] {
+      margin: 5px;
+      padding: 10px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Excelからカード画像生成</h1>
+  <input type="file" id="excelFile" accept=".xlsx"><br>
+
+  <!-- カード表示 -->
+  <div id="card">
+    <div id="cardBg"></div>
+    <h2 id="name">名前</h2>
+    <p id="intro">紹介文がここに表示されます。</p>
+  </div>
+
+  <!-- ナビゲーション -->
+  <div>
+    <button id="prevBtn">← 前</button>
+    <button id="nextBtn">次 →</button><br>
+    <button id="downloadOneBtn">このカードを保存</button>
+    <button id="downloadAllBtn">全カードを保存</button>
+  </div>
+
+  <!-- 背景変更 -->
+  <div>
+    <p>背景を変更：</p>
+    <button onclick="setBackground('images/bg1.jpg')">背景1</button>
+    <button onclick="setBackground('images/bg2.jpg')">背景2</button>
+    <button onclick="setBackground('images/bg3.jpg')">背景3</button>
+    <button onclick="setBackground('images/bg4.jpg')">背景4</button>
+  </div>
+
+  <!-- フォント・サイズ変更 -->
+  <div>
+    <p>フォントとサイズを変更：</p>
+    <select id="fontSelect">
+      <option value="serif">明朝体（serif）</option>
+      <option value="sans-serif">ゴシック（sans-serif）</option>
+      <option value="monospace">等幅（monospace）</option>
+      <option value="cursive">手書き風（cursive）</option>
+    </select>
+    <input type="range" id="fontSize" min="10" max="40" value="16">
+    <label for="fontSize" id="fontSizeLabel">16px</label>
+  </div>
+
+  <!-- 名前と紹介のスペース調整 -->
+  <div>
+    <p>名前と紹介のスペース：</p>
+    <input type="range" id="spacingSlider" min="0" max="60" value="20">
+    <label id="spacingLabel">20px</label>
+  </div>
+
+  <script>
+    let cardData = [];
+    let currentIndex = 0;
+
+    function renderCard(index) {
+      const data = cardData[index];
+      if (data) {
+        document.getElementById("name").textContent = data.name;
+        document.getElementById("intro").textContent = data.intro;
+      }
+    }
+
+    document.getElementById("excelFile").addEventListener("change", function (e) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+        cardData = rows.map(row => ({
+          name: row["名前"] || "No Name",
+          intro: row["紹介"] || "No Info"
+        }));
+        currentIndex = 0;
+        renderCard(currentIndex);
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    document.getElementById("prevBtn").onclick = function () {
+      if (currentIndex > 0) {
+        currentIndex--;
+        renderCard(currentIndex);
+      }
+    };
+
+    document.getElementById("nextBtn").onclick = function () {
+      if (currentIndex < cardData.length - 1) {
+        currentIndex++;
+        renderCard(currentIndex);
+      }
+    };
+
+    document.getElementById("downloadOneBtn").onclick = function () {
+      html2canvas(document.getElementById("card")).then(canvas => {
+        const link = document.createElement("a");
+        link.download = `card_${currentIndex + 1}.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+      });
+    };
+
+    document.getElementById("downloadAllBtn").onclick = async function () {
+      for (let i = 0; i < cardData.length; i++) {
+        renderCard(i);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        await html2canvas(document.getElementById("card")).then(canvas => {
+          const link = document.createElement("a");
+          link.download = `card_${i + 1}.png`;
+          link.href = canvas.toDataURL();
+          link.click();
+        });
+      }
+    };
+
+    function setBackground(imagePath) {
+      document.getElementById("cardBg").style.backgroundImage = `url(${imagePath})`;
+    }
+
+    document.getElementById("fontSelect").addEventListener("change", function () {
+      document.getElementById("card").style.fontFamily = this.value;
+    });
+
+    document.getElementById("fontSize").addEventListener("input", function () {
+      const size = this.value + "px";
+      document.getElementById("fontSizeLabel").textContent = size;
+      document.getElementById("name").style.fontSize = size;
+      document.getElementById("intro").style.fontSize = size;
+    });
+
+    document.getElementById("name").style.marginBottom = "20px";
+    document.getElementById("name").style.fontSize = "16px";
+    document.getElementById("intro").style.fontSize = "16px";
+
+    document.getElementById("spacingSlider").addEventListener("input", function () {
+      const spacing = this.value + "px";
+      document.getElementById("spacingLabel").textContent = spacing;
+      document.getElementById("name").style.marginBottom = spacing;
+    });
+
+    // 初期設定
+    document.getElementById("cardBg").style.backgroundImage = "";
+    document.getElementById("card").style.fontFamily = "serif";
+  </script>
+
+</body>
+</html>
